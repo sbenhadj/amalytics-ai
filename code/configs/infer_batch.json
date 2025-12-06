@@ -1,0 +1,15 @@
+{
+    "model_path": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "lora_path": "amalytics-ml/models/last_Modelep4/lora-output",
+    "template_path": "amalytics-ml/data/filtered_templates/empty/sample_1_template_empty.json",
+    "max_new_tokens": 2000,
+    "do_sample": false,
+    "return_scores": true,
+    "load_in_4bit": false,
+    "device_map": "cpu",
+    "use_batch_inference": true,
+    "max_measurements_per_batch": 2,
+    "dedup_consecutive_keys": true,
+    "extra_generation_kwargs": {}
+}
+

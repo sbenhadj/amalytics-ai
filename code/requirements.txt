@@ -1,0 +1,16 @@
+torch
+transformers
+accelerate
+bitsandbytes
+peft
+datasets
+trl
+pdfplumber
+pyffx
+scikit-learn
+natsort
+fpdf2
+lxml
+nltk
+huggingface_hub
+

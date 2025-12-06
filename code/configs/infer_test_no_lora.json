@@ -1,0 +1,12 @@
+{
+    "model_path": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "lora_path": "",
+    "template_path": "amalytics-ml/data/filtered_templates/empty/sample_1_template_empty.json",
+    "max_new_tokens": 1024,
+    "do_sample": false,
+    "return_scores": true,
+    "load_in_4bit": false,
+    "device_map": "cpu",
+    "extra_generation_kwargs": {}
+}
+

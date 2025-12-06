@@ -1,0 +1,29 @@
+{
+    "test_reports_dir": "amalytics-ml/data/reports",
+    "test_ground_truth_dir": "amalytics-ml/data/filtered_templates/filled",
+    "test_empty_templates_dir": "amalytics-ml/data/filtered_templates/empty",
+    
+    "model_path": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "lora_path": "amalytics-ml/models/last_Modelep4/lora-output",
+    "template_path": "amalytics-ml/data/filtered_templates/empty/sample_1_template_empty.json",
+    
+    "max_new_tokens": 3000,
+    "do_sample": false,
+    "return_scores": false,
+    "load_in_4bit": false,
+    "device_map": "cpu",
+    "use_batch_inference": false,
+    "apply_anonymization": false,
+    
+    "ignore_keys": [],
+    "case_sensitive": false,
+    "strip_whitespace": true,
+    "numeric_precision": 4,
+    "ignore_null_ground_truth": true,
+    "path_separator": ".",
+    "average": "micro",
+    
+    "predictions_output_dir": "./evaluation_predictions",
+    "metrics_output_path": "./evaluation_metrics.json"
+}
+
