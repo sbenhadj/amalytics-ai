@@ -129,11 +129,13 @@ class FullEvalConfig:
     # Dataset paths
     test_reports_dir: str  # Directory containing PDF test reports
     test_ground_truth_dir: str  # Directory containing filled JSON templates (ground truth)
-    test_empty_templates_dir: str | None = None  # Directory containing empty templates (if None, uses single template)
     
     # Inference configuration (from InferenceConfig)
     model_path: str
     lora_path: str
+    
+    test_empty_templates_dir: str | None = None  # Directory containing empty templates (if None, uses single template)
+    
     template: Mapping[str, Any] | str | None = None
     template_path: str | None = None
     bos_token: str = "<|begin_of_text|>"
@@ -192,6 +194,7 @@ class SyntheticDataConfig:
     selection_probs: Sequence[float] = (0.0, 0.3, 0.5, 0.7, 0.8, 0.9, 1.0)
     selection_weights: Sequence[float] = (0.2, 0.1, 0.2, 0.1, 0.15, 0.15, 0.1)
     value_noise: float = 0.2
+
 
 
 
