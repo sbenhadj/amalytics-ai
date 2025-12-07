@@ -50,11 +50,34 @@ def _build_prompt(report_text: str, template_str: str, cfg: InferenceConfig) -> 
 
 
 def _load_model_and_tokenizer(model_path: str, lora_path: str, cfg: InferenceConfig):
-    tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
+    # CRITICAL: Match original notebook behavior exactly
+    # If LoRA path is provided, load model and tokenizer from LoRA config's base_model_name_or_path
+    # This ensures both model and tokenizer match the training setup
+    if lora_path:
+        from peft import PeftConfig
+        try:
+            peft_config = PeftConfig.from_pretrained(lora_path)
+            base_model_name = peft_config.base_model_name_or_path
+            # Use the base model name from LoRA config for both model and tokenizer
+            # This matches: model_name = config.base_model_name_or_path in original notebook
+            actual_model_path = base_model_name
+            tokenizer = AutoTokenizer.from_pretrained(base_model_name, use_fast=True)
+        except Exception as e:
+            # Fallback to model_path if LoRA config can't be loaded
+            print(f"[WARNING] Could not load PeftConfig from {lora_path}: {e}")
+            print(f"[WARNING] Falling back to model_path: {model_path}")
+            actual_model_path = model_path
+            tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
+    else:
+        # No LoRA, use model_path directly
+        actual_model_path = model_path
+        tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
+    
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    # Build model kwargs - only include 4-bit params when enabled
+    # Build model kwargs - match original notebook exactly
+    # Original: load_in_4bit=True, bnb_4bit_compute_dtype=torch.float16, device_map="auto"
     model_kwargs: dict[str, Any] = {
         "device_map": cfg.device_map,
         "low_cpu_mem_usage": True,
@@ -71,18 +94,23 @@ def _load_model_and_tokenizer(model_path: str, lora_path: str, cfg: InferenceCon
             model_kwargs["quantization_config"] = quantization_config
         except ImportError:
             # Fallback to deprecated method if BitsAndBytesConfig not available
+            # This matches the original notebook which uses deprecated method
             model_kwargs["load_in_4bit"] = True
             model_kwargs["bnb_4bit_compute_dtype"] = cfg.bnb_compute_dtype
     else:
         # Use float16 to reduce memory when not using 4-bit quantization
         model_kwargs["dtype"] = torch.float16
 
-    model = AutoModelForCausalLM.from_pretrained(model_path, **model_kwargs)
+    # Load model from actual_model_path (base_model_name if LoRA, else model_path)
+    # This matches: model = AutoModelForCausalLM.from_pretrained(model_name, ...) in original
+    model = AutoModelForCausalLM.from_pretrained(actual_model_path, **model_kwargs)
     
     # Only load LoRA if path is provided
+    # This matches: model = PeftModel.from_pretrained(model, peft_model_id) in original
     if lora_path:
         model = PeftModel.from_pretrained(model, lora_path)
     
+    # Set to eval mode - matches: model = model.eval() in original
     model = model.eval()
     return model, tokenizer
 
@@ -239,9 +267,11 @@ def _parse_llm_output(s: str) -> dict[str, Any] | None:
 
 def _extract_json_from_response(response_text: str) -> dict[str, Any] | None:
     """
-    Extract JSON object from model response with multiple fallback strategies.
+    Extract JSON object from model response.
+    
+    Matches the original notebook behavior: simple regex search for JSON block.
     """
-    # Strategy 1: Find JSON block with regex
+    # Original notebook approach: simple regex search
     match = re.search(r"\{[\s\S]+\}", response_text)
     if match:
         try:
@@ -249,34 +279,38 @@ def _extract_json_from_response(response_text: str) -> dict[str, Any] | None:
         except json.JSONDecodeError:
             pass
     
-    # Strategy 2: Try to find and fix incomplete JSON
-    # Look for opening brace and try to complete it
+    # Fallback: try to find JSON with balanced braces
     brace_start = response_text.find("{")
     if brace_start != -1:
         json_candidate = response_text[brace_start:]
-        # Count braces to find potential end
+        # Count braces to find potential end (handle strings properly)
         depth = 0
         end_pos = -1
+        in_string = False
+        escape_next = False
+        
         for i, char in enumerate(json_candidate):
-            if char == "{":
-                depth += 1
-            elif char == "}":
-                depth -= 1
-                if depth == 0:
-                    end_pos = i + 1
-                    break
+            if escape_next:
+                escape_next = False
+                continue
+            if char == "\\":
+                escape_next = True
+                continue
+            if char == '"' and not escape_next:
+                in_string = not in_string
+                continue
+            if not in_string:
+                if char == "{":
+                    depth += 1
+                elif char == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end_pos = i + 1
+                        break
         
         if end_pos > 0:
             try:
                 return json.loads(json_candidate[:end_pos])
-            except json.JSONDecodeError:
-                pass
-        
-        # Try adding closing braces
-        if depth > 0:
-            try:
-                fixed_json = json_candidate.rstrip() + "}" * depth
-                return json.loads(fixed_json)
             except json.JSONDecodeError:
                 pass
     
@@ -367,7 +401,14 @@ def _run_batch_inference(
             "return_dict_in_generate": True,
             "output_scores": cfg.return_scores,
         }
-        generation_kwargs.update(cfg.extra_generation_kwargs)
+        # Update with extra kwargs, but remove sampling params if do_sample=False
+        extra_kwargs = cfg.extra_generation_kwargs.copy()
+        if not cfg.do_sample:
+            # Remove sampling parameters when do_sample=False
+            extra_kwargs.pop("temperature", None)
+            extra_kwargs.pop("top_p", None)
+            extra_kwargs.pop("top_k", None)
+        generation_kwargs.update(extra_kwargs)
         
         # Batch generation
         with torch.inference_mode():
@@ -602,22 +643,9 @@ def run_inference(
     template_str = _template_to_string(cfg.template)
     prompt = _build_prompt(input_text, template_str, cfg)
     
-    # Tokenize with truncation to avoid exceeding model's max length
-    model_max_length = getattr(tokenizer, "model_max_length", 2048)
-    if model_max_length > 100000:  # Some tokenizers set this to a very large number
-        model_max_length = 2048
-    
-    # Reserve space for generation
-    max_input_length = model_max_length - cfg.max_new_tokens
-    if max_input_length < 512:
-        max_input_length = 512  # Minimum input length
-    
-    inputs = tokenizer(
-        prompt,
-        return_tensors="pt",
-        truncation=True,
-        max_length=max_input_length,
-    ).to(model.device)
+    # Tokenize - match original notebook exactly: NO truncation
+    # Original: inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
 
     eos_token_id = cfg.eos_token_id if cfg.eos_token_id is not None else tokenizer.eos_token_id
     pad_token_id = cfg.pad_token_id if cfg.pad_token_id is not None else tokenizer.eos_token_id
@@ -631,7 +659,14 @@ def run_inference(
         "return_dict_in_generate": True,
         "output_scores": cfg.return_scores,
     }
-    generation_kwargs.update(cfg.extra_generation_kwargs)
+    # Update with extra kwargs, but remove sampling params if do_sample=False
+    extra_kwargs = cfg.extra_generation_kwargs.copy()
+    if not cfg.do_sample:
+        # Remove sampling parameters when do_sample=False
+        extra_kwargs.pop("temperature", None)
+        extra_kwargs.pop("top_p", None)
+        extra_kwargs.pop("top_k", None)
+    generation_kwargs.update(extra_kwargs)
 
     outputs = model.generate(**inputs, **generation_kwargs)
     generated_ids = outputs.sequences[0][inputs.input_ids.shape[-1]:]
