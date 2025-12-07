@@ -63,8 +63,8 @@ class InferenceConfig:
     eot_token: str = "<|eot_id|>"
     system_prompt: str = (
         "You are a precise and reliable medical AI assistant. "
-        "Your task is to extract relevant entities from a medical report and return a filled JSON object "
-        "based on the provided template. Ensure the output is valid JSON and matches the structure of the template. "
+        "Your task is to extract relevant entities from a medical report and return a filled JSON object based on the provided template. "
+        "Ensure the output is valid JSON and matches the structure of the template. "
         "Only use values found or logically inferred from the report. Leave fields unchanged if no value is found."
     )
     user_prompt_template: str = (
@@ -133,7 +133,7 @@ class FullEvalConfig:
     # Inference configuration (from InferenceConfig)
     model_path: str
     lora_path: str
-    
+
     test_empty_templates_dir: str | None = None  # Directory containing empty templates (if None, uses single template)
     
     template: Mapping[str, Any] | str | None = None
@@ -144,8 +144,8 @@ class FullEvalConfig:
     eot_token: str = "<|eot_id|>"
     system_prompt: str = (
         "You are a precise and reliable medical AI assistant. "
-        "Your task is to extract relevant entities from a medical report and return a filled JSON object "
-        "based on the provided template. Ensure the output is valid JSON and matches the structure of the template. "
+        "Your task is to extract relevant entities from a medical report and return a filled JSON object based on the provided template. "
+        "Ensure the output is valid JSON and matches the structure of the template. "
         "Only use values found or logically inferred from the report. Leave fields unchanged if no value is found."
     )
     user_prompt_template: str = (
@@ -194,7 +194,6 @@ class SyntheticDataConfig:
     selection_probs: Sequence[float] = (0.0, 0.3, 0.5, 0.7, 0.8, 0.9, 1.0)
     selection_weights: Sequence[float] = (0.2, 0.1, 0.2, 0.1, 0.15, 0.15, 0.1)
     value_noise: float = 0.2
-
 
 
 
